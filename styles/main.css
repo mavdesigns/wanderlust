@@ -1,0 +1,157 @@
+:root {
+  --bg-primary: #121824;
+  --bg-secondary: #1a2332;
+  --bg-card: #243044;
+  --accent-color: #3b82f6;
+  --accent-hover: #2563eb;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --border-color: #374151;
+  --header-height: 65px;
+  --sidebar-width: 410px;
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app-header {
+  min-height: var(--header-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.25rem;
+  z-index: 1000;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.logo h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.logo small {
+  color: var(--accent-color);
+  font-size: 0.7rem;
+}
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+.search-bar input {
+  background: transparent;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  color: var(--text-primary);
+  width: 100%;
+  outline: none;
+}
+.search-bar button {
+  background: transparent;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.header-actions {
+  flex-shrink: 0;
+}
+.app-container {
+  display: flex;
+  height: calc(100vh - var(--header-height));
+  position: relative;
+}
+.map-view {
+  flex: 1;
+  height: 100%;
+  z-index: 1;
+}
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease;
+}
+.sidebar.journal-hidden {
+  display: none;
+}
+.modal-backdrop.map-pick-active,
+.modal-backdrop.route-active {
+  background: transparent;
+  pointer-events: none;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+.modal-backdrop.map-pick-active .modal,
+.modal-backdrop.route-active .modal {
+  pointer-events: auto;
+  margin: 1rem;
+  width: min(420px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+}
+.modal-backdrop.route-active .modal {
+  max-width: 420px;
+}
+@media (max-width: 768px) {
+  body {
+    overflow: auto;
+  }
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+  .header-actions {
+    margin-left: auto;
+  }
+  .app-container {
+    flex-direction: column;
+    height: calc(100vh - 125px);
+  }
+  .map-view {
+    min-height: 60vh;
+  }
+  .sidebar {
+    width: 100%;
+    height: 40vh;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+/* Map remains interactive while compact editors float above it. */
+.modal-backdrop.compact-mode {
+  z-index: 1200;
+}
+.modal-backdrop.expanded-mode {
+  z-index: 2000;
+}
