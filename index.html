@@ -33,6 +33,29 @@
         <div id="search-suggestions" class="search-suggestions hidden"></div>
       </div>
       <div class="header-actions">
+        <div class="map-theme-toggle" aria-label="Map theme">
+          <button
+            type="button"
+            id="map-theme-light-btn"
+            class="theme-btn active"
+            title="Light map"
+            aria-label="Use light map"
+            aria-pressed="true"
+          >
+            ☀️
+          </button>
+
+          <button
+            type="button"
+            id="map-theme-dark-btn"
+            class="theme-btn"
+            title="Dark map"
+            aria-label="Use dark map"
+            aria-pressed="false"
+          >
+            🌙
+          </button>
+        </div>
         <button
           id="journal-toggle-btn"
           class="btn btn-secondary btn-small"
@@ -233,6 +256,12 @@
               role="radiogroup"
               aria-label="Trip rating"
             ></div>
+          </div>
+          <div id="compact-route-summary" class="compact-route-summary hidden">
+            <span class="compact-route-label">🗺️ Route</span>
+            <span id="compact-route-distance"></span>
+            <span class="compact-route-separator">•</span>
+            <span id="compact-route-duration"></span>
           </div>
           <div class="form-group modal-advanced">
             <label for="trip-notes">Trip Remarks</label>

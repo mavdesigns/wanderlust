@@ -23,6 +23,7 @@ import {
   updateDraftMarker,
   clearDraftMarker,
   invalidateMapSize,
+  setMapTheme,
 } from "./ui/mapManager.js";
 import {
   renderPlaceList,
@@ -41,6 +42,7 @@ let pendingTripNewPlaceIds = [];
 let tripMapPickMode = false;
 let journalVisible = true;
 let routeVisible = false;
+let currentMapTheme = "light";
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,6 +68,14 @@ window.addEventListener("DOMContentLoaded", () => {
       state.setFilter(btn.dataset.filter);
       clearRoute();
     }),
+  );
+
+  $("map-theme-light-btn")?.addEventListener("click", () =>
+    changeMapTheme("light"),
+  );
+
+  $("map-theme-dark-btn")?.addEventListener("click", () =>
+    changeMapTheme("dark"),
   );
 
   $("create-trip-btn").addEventListener("click", () => openTripEditor());
@@ -192,6 +202,7 @@ function closeModal(modal) {
   clearDraftMarker();
   clearRoute();
   routeVisible = false;
+  clearCompactRouteSummary();
   invalidateMapSize();
 }
 
@@ -456,6 +467,7 @@ async function deleteCurrentPlace() {
 
 function openTripEditor(trip = null) {
   resetTripDraft();
+  clearCompactRouteSummary();
   $("trip-id").value = trip?.id || "";
   $("trip-title").value = trip?.title || "";
   $("trip-start-date").value = trip?.startDate || "";
@@ -808,22 +820,93 @@ async function addMapPlaceToCurrentTrip(lat, lng) {
   }
 }
 
+function updateCompactRouteSummary(route) {
+  const summary = $("compact-route-summary");
+  const distance = $("compact-route-distance");
+  const duration = $("compact-route-duration");
+
+  if (!summary || !distance || !duration) return;
+
+  const distanceKm = route.distance / 1000;
+  const durationMinutes = Math.round(route.duration / 60);
+
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+
+  let durationText;
+
+  if (hours > 0 && minutes > 0) {
+    durationText = `${hours} hr ${minutes} min`;
+  } else if (hours > 0) {
+    durationText = `${hours} hr`;
+  } else {
+    durationText = `${minutes} min`;
+  }
+
+  distance.textContent = `${distanceKm.toFixed(1)} km`;
+  duration.textContent = `⏱ ${durationText}`;
+
+  summary.classList.remove("hidden");
+}
+
+function clearCompactRouteSummary() {
+  const summary = $("compact-route-summary");
+  const distance = $("compact-route-distance");
+  const duration = $("compact-route-duration");
+
+  if (summary) summary.classList.add("hidden");
+  if (distance) distance.textContent = "";
+  if (duration) duration.textContent = "";
+}
+
 async function showCurrentTripRoute() {
-  setModalExpanded("trip-modal", false);
   const ids = getTripPlaceIdsFromEditor();
-  if (ids.length < 2)
+
+  if (ids.length < 2) {
     return showToast("Add at least two places to build a route.", "info");
+  }
+
   try {
     const route = await getRoute(
       ids.map((id) => state.places.find((p) => p.id === id)).filter(Boolean),
     );
+
     renderRoute(route);
+
     routeVisible = true;
+
+    // Route view should always start in compact mode.
+    setModalExpanded("trip-modal", false);
+
     $("trip-modal").classList.add("route-mode");
     $("trip-modal").parentElement.classList.add("route-active");
-    $("route-summary").textContent =
-      `${(route.distance / 1000).toFixed(1)} km • ${(route.duration / 3600).toFixed(1)} hr estimated driving`;
+
+    // Existing expanded-view route summary.
+    const distanceKm = route.distance / 1000;
+    const durationMinutes = Math.round(route.duration / 60);
+
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+
+    let durationText;
+
+    if (hours > 0 && minutes > 0) {
+      durationText = `${hours} hr ${minutes} min`;
+    } else if (hours > 0) {
+      durationText = `${hours} hr`;
+    } else {
+      durationText = `${minutes} min`;
+    }
+
+    const routeText = `${distanceKm.toFixed(1)} km • ${durationText} estimated driving`;
+
+    $("route-summary").textContent = routeText;
+
+    // New compact-view route information.
+    updateCompactRouteSummary(route);
   } catch (err) {
+    clearCompactRouteSummary();
+
     showToast(`Route unavailable: ${err.message}`, "error");
   }
 }
@@ -1024,4 +1107,31 @@ function escapeText(value) {
   const div = document.createElement("div");
   div.textContent = value || "";
   return div.innerHTML;
+}
+
+function updateMapThemeButtons() {
+  const lightBtn = $("map-theme-light-btn");
+  const darkBtn = $("map-theme-dark-btn");
+
+  if (!lightBtn || !darkBtn) return;
+
+  const isLight = currentMapTheme === "light";
+
+  lightBtn.classList.toggle("active", isLight);
+  darkBtn.classList.toggle("active", !isLight);
+
+  lightBtn.setAttribute("aria-pressed", String(isLight));
+
+  darkBtn.setAttribute("aria-pressed", String(!isLight));
+}
+
+function changeMapTheme(theme) {
+  if (theme !== "light" && theme !== "dark") {
+    return;
+  }
+
+  currentMapTheme = theme;
+
+  setMapTheme(theme);
+  updateMapThemeButtons();
 }
