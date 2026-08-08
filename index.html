@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wanderlust - Exploration Journal & Trip Planner</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121218;
+      color: #ffffff;
+    }
+
+    #app-container {
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Sidebar Navigation and Controls */
+    #sidebar {
+      width: 400px;
+      background: #1a1a24;
+      border-right: 1px solid #2a2a3a;
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    #map {
+      flex: 1;
+      height: 100%;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      color: #f1c40f;
+      margin-top: 0;
+      border-bottom: 1px solid #333345;
+      padding-bottom: 6px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+
+    input, textarea, select, button {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #333345;
+      background: #252533;
+      color: #fff;
+      font-size: 0.88rem;
+    }
+
+    button {
+      background: #3498db;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: #2980b9;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+    }
+    .btn-danger:hover {
+      background: #c0392b;
+    }
+
+    .btn-warning {
+      background: #f39c12;
+    }
+    .btn-warning:hover {
+      background: #d35400;
+    }
+
+    .btn-success {
+      background: #2ecc71;
+    }
+    .btn-success:hover {
+      background: #27ae60;
+    }
+
+    .search-results {
+      background: #252533;
+      border: 1px solid #333345;
+      border-radius: 6px;
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 4px;
+      list-style: none;
+      padding: 0;
+    }
+
+    .search-results li {
+      padding: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border-bottom: 1px solid #333345;
+    }
+
+    .search-results li:hover {
+      background: #34495e;
+    }
+
+    .selected-location-box {
+      background: #20202d;
+      border: 1px dashed #3498db;
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+
+    .trip-card {
+      background: #252533;
+      border: 1px solid #3a3a4d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .trip-card h4 {
+      margin: 0 0 6px 0;
+      color: #2ecc71;
+    }
+
+    .photo-grid {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      overflow-x: auto;
+    }
+
+    .photo-grid img {
+      width: 65px;
+      height: 65px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+
+    .place-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e1e2a;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+    }
+
+    .leaflet-popup-content-wrapper {
+      background: #1a1a24;
+      color: #ffffff;
+      border-radius: 10px;
+    }
+    .leaflet-popup-tip { background: #1a1a24; }
+  </style>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
+</head>
+<body>
+
+<div id="app-container">
+  <div id="sidebar">
+    <h2 style="margin-top: 0;">🧭 Wanderlust Journal</h2>
+
+    <div id="auth-container" style="padding: 10px; background: #222; color: #fff; border-radius: 8px;">
+      <p id="auth-status">Status: Disconnected 🔴</p>
+      <button id="login-btn" onclick="handleAuthClick()">🔑 Login with Google</button>
+    </div>
+    
+    <div class="form-group">
+      <h3 class="section-title">📍 Select Location</h3>
+      <input type="text" id="searchInput" placeholder="Type location word (e.g., Taj Mahal, Goa)..." onkeydown="if(event.key === 'Enter') searchLocation()" />
+      <button onclick="searchLocation()">Search Word</button>
+      <ul id="searchResults" class="search-results" style="display:none;"></ul>
+
+      <p style="font-size: 0.78rem; color: #888; margin: 6px 0;">
+        💡 <em>Or click anywhere directly on the map to drop a pin! You can also drag the pin to adjust its exact location.</em>
+      </p>
+
+      <div id="activeLocationCard" class="selected-location-box" style="display: none;">
+        <strong>Active Pin Location:</strong>
+        <input type="text" id="customPlaceName" style="margin-top:6px;" placeholder="Custom location name..." />
+        <small id="coordLabel" style="color:#aaa; display:block; margin-top:4px;"></small>
+      </div>
+    </div>
+
+    <hr style="border-color: #2a2a3a; margin: 12px 0;">
+
+    <div class="form-group">
+      <h3 class="section-title">✈️ Create or Edit Trip</h3>
+      <input type="hidden" id="editingTripId" value="" />
+      
+      <label>Trip Title</label>
+      <input type="text" id="tripName" placeholder="e.g., Rajasthan Road Trip 2026" />
+
+      <label>Dates Visited</label>
+      <input type="text" id="tripDates" placeholder="e.g., Oct 12 - Oct 20, 2026" />
+
+      <label>Overall Trip Journal / Notes</label>
+      <textarea id="tripNotes" rows="2" placeholder="Draft notes about the whole trip experience..."></textarea>
+
+      <label>Trip Photo URLs (Comma-separated links)</label>
+      <input type="text" id="tripPhotos" placeholder="https://img1.jpg, https://img2.jpg" />
+
+      <button id="saveTripBtn" class="btn-success" onclick="saveTrip()">Save Trip</button>
+      <button id="cancelEditBtn" class="btn-warning" onclick="resetForm()" style="display:none;">Cancel Edit</button>
+    </div>
+
+    <hr style="border-color: #2a2a3a; margin: 12px 0;">
+
+    <h3 class="section-title">📖 Recorded Trips</h3>
+    <div id="tripsList"></div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // STEP 1: Initialize Map & Dark Mode Layer
+  const map = L.map('map').setView([20.5937, 78.9629], 5);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Application State
+  let activeMarker = null;
+  let activePolyline = null;
+  let activeLocationData = null; // { name, coords: [lat, lng] }
+  let tripsData = [];
+  
+  // Marker management layer to prevent duplications
+  const savedPinsLayerGroup = L.layerGroup().addTo(map);
+
+  // LocalStorage Key Name
+  const STORAGE_KEY = 'wanderlust_trips_db';
+
+  // GOOGLE DRIVE CONFIGURATION
+  const CLIENT_ID = '145601306668-ojdb284ct1gn8jaemjlb26n3405209ra.apps.googleusercontent.com'; // Replace with your OAuth Client ID
+  const SCOPES = 'https://www.googleapis.com/auth/drive.appdata'; 
+  const FILE_NAME = 'wanderlust_trips.json';
+
+  let tokenClient = null;
+  let accessToken = null;
+  let driveFileId = null;
+
+  // INITIALIZATION
+  window.onload = function() {
+    loadTripsFromStorage();
+    renderTripsUI();
+    renderMapPins();
+  };
+
+  // Close search dropdown on click outside
+  document.addEventListener('click', function(e) {
+    const searchResults = document.getElementById('searchResults');
+    const searchInput = document.getElementById('searchInput');
+    if (e.target !== searchResults && e.target !== searchInput) {
+      searchResults.style.display = 'none';
+    }
+  });
+
+  // -------------------------------------------------------------
+  // FEATURE 1: GEOCODING, DRAGGABLE PINS & CLICK-TO-DROP
+  // -------------------------------------------------------------
+  async function searchLocation() {
+    const query = document.getElementById('searchInput').value.trim();
+    if (!query) return;
+
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+
+    try {
+      const response = await fetch(url);
+      const results = await response.json();
+      const resultsList = document.getElementById('searchResults');
+      resultsList.innerHTML = '';
+
+      if (results.length === 0) {
+        resultsList.style.display = 'block';
+        resultsList.innerHTML = '<li style="padding: 8px;">No place found. Try another word.</li>';
+        return;
+      }
+
+      resultsList.style.display = 'block';
+      results.slice(0, 5).forEach(item => {
+        const li = document.createElement('li');
+        li.style.cursor = 'pointer';
+        li.style.padding = '6px';
+        li.innerText = item.display_name;
+        li.onclick = () => selectSearchResult(item);
+        resultsList.appendChild(li);
+      });
+    } catch (err) {
+      alert("Error reaching location search service: " + err);
+    }
+  }
+
+  function selectSearchResult(item) {
+    const lat = parseFloat(item.lat);
+    const lon = parseFloat(item.lon);
+    const placeName = item.display_name.split(',')[0];
+    
+    document.getElementById('searchResults').style.display = 'none';
+    setInteractivePin([lat, lon], placeName);
+    map.flyTo([lat, lon], 12, { duration: 1.2 });
+  }
+
+  // Handle manual clicks directly on the map surface
+  map.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    
+    const suggestedName = prompt("Enter a name for this pinned location:", "Custom Pin Spot");
+    const name = suggestedName ? suggestedName.trim() : `Point (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+    
+    setInteractivePin([lat, lng], name);
+  });
+
+  // Creates or moves an interactive, DRAGGABLE marker
+  function setInteractivePin(coords, placeName) {
+    if (activeMarker) {
+      map.removeLayer(activeMarker);
+    }
+
+    activeMarker = L.marker(coords, { draggable: true }).addTo(map);
+    activeLocationData = { name: placeName, coords: coords };
+
+    updateActiveLocationUI(coords, placeName);
+
+    // Marker Drag Event handling
+    activeMarker.on('dragend', function(event) {
+      const newPos = event.target.getLatLng();
+      const updatedCoords = [newPos.lat, newPos.lng];
+      const currentCustomName = document.getElementById('customPlaceName').value.trim() || activeLocationData.name;
+      
+      activeLocationData = { name: currentCustomName, coords: updatedCoords };
+      updateActiveLocationUI(updatedCoords, currentCustomName);
+      
+      activeMarker.bindPopup(`<b>${currentCustomName}</b><br>Adjusted Pin Position`).openPopup();
+    });
+
+    activeMarker.bindPopup(`<b>${placeName}</b><br>Drag pin to adjust exact location!`).openPopup();
+  }
+
+  function updateActiveLocationUI(coords, name) {
+    const card = document.getElementById('activeLocationCard');
+    const nameInput = document.getElementById('customPlaceName');
+    const coordLabel = document.getElementById('coordLabel');
+
+    card.style.display = 'block';
+    nameInput.value = name;
+    coordLabel.innerText = `Coordinates: ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
+
+    nameInput.oninput = function() {
+      if (activeLocationData) {
+        activeLocationData.name = nameInput.value;
+      }
+    };
+  }
+
+  // -------------------------------------------------------------
+  // FEATURE 2: TRIP CRUD OPERATIONS & PERSISTENCE
+  // -------------------------------------------------------------
+  function saveTrip() {
+    const editingId = document.getElementById('editingTripId').value;
+    const name = document.getElementById('tripName').value.trim();
+    const dates = document.getElementById('tripDates').value.trim();
+    const notes = document.getElementById('tripNotes').value.trim();
+    const photosRaw = document.getElementById('tripPhotos').value.trim();
+
+    if (!name) {
+      alert("Please enter a Trip Title.");
+      return;
+    }
+
+    const photos = photosRaw ? photosRaw.split(',').map(url => url.trim()) : [];
+
+    if (editingId) {
+      // UPDATE existing trip
+      const trip = tripsData.find(t => t.id == editingId);
+      if (trip) {
+        trip.name = name;
+        trip.dates = dates;
+        trip.notes = notes;
+        trip.photos = photos;
+
+        if (activeLocationData) {
+          trip.places.push({ ...activeLocationData });
+        }
+      }
+    } else {
+      // CREATE new trip
+      const newTrip = {
+        id: Date.now(),
+        name: name,
+        dates: dates,
+        notes: notes,
+        photos: photos,
+        places: activeLocationData ? [{ ...activeLocationData }] : []
+      };
+      tripsData.push(newTrip);
+    }
+
+    saveTripsToStorage();
+    renderTripsUI();
+    renderMapPins();
+    resetForm();
+  }
+
+  function editTrip(tripId) {
+    const trip = tripsData.find(t => t.id === tripId);
+    if (!trip) return;
+
+    document.getElementById('editingTripId').value = trip.id;
+    document.getElementById('tripName').value = trip.name;
+    document.getElementById('tripDates').value = trip.dates;
+    document.getElementById('tripNotes').value = trip.notes;
+    document.getElementById('tripPhotos').value = trip.photos.join(', ');
+
+    document.getElementById('saveTripBtn').innerText = "Update Trip";
+    document.getElementById('cancelEditBtn').style.display = "block";
+  }
+
+  function deleteTrip(tripId) {
+    if (confirm("Are you sure you want to delete this trip and all its places?")) {
+      tripsData = tripsData.filter(t => t.id !== tripId);
+      saveTripsToStorage();
+      renderTripsUI();
+      renderMapPins();
+    }
+  }
+
+  function addActivePlaceToTrip(tripId) {
+    if (!activeLocationData) {
+      alert("Please search or click on the map to set an active pin first!");
+      return;
+    }
+
+    const trip = tripsData.find(t => t.id === tripId);
+    if (trip) {
+      const currentName = document.getElementById('customPlaceName').value.trim();
+      if (currentName) activeLocationData.name = currentName;
+
+      trip.places.push({ ...activeLocationData });
+      saveTripsToStorage();
+      renderTripsUI();
+      renderMapPins();
+      clearActivePin();
+    }
+  }
+
+  function deletePlaceFromTrip(tripId, placeIndex) {
+    const trip = tripsData.find(t => t.id === tripId);
+    if (trip) {
+      trip.places.splice(placeIndex, 1);
+      saveTripsToStorage();
+      renderTripsUI();
+      renderMapPins();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // FEATURE 3: STORAGE & CLOUD PERSISTENCE HANDLERS
+  // -------------------------------------------------------------
+  async function saveTripsToStorage() {
+    // 1. Always save locally as offline backup
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tripsData));
+
+    // 2. Check Google Drive Sync availability
+    if (!accessToken || !driveFileId) {
+      console.warn("Not logged into Google Drive. Saved to local storage only.");
+      return;
+    }
+
+    // 3. Upload JSON array to Drive
+    try {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tripsData)
+      });
+      console.log("🟢 Successfully saved trips to Google Drive!");
+    } catch (err) {
+      console.error("🔴 Failed to save to Google Drive:", err);
+    }
+  }
+
+  function loadTripsFromStorage() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        tripsData = JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing stored trip data", e);
+        tripsData = [];
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // FEATURE 4: UI & MAP RENDERERS
+  // -------------------------------------------------------------
+  function renderTripsUI() {
+    const container = document.getElementById('tripsList');
+    container.innerHTML = '';
+
+    if (tripsData.length === 0) {
+      container.innerHTML = '<p style="font-size:0.85rem; color:#888;">No trips recorded yet.</p>';
+      return;
+    }
+
+    tripsData.forEach(trip => {
+      const card = document.createElement('div');
+      card.className = 'trip-card';
+      card.style.cssText = "background: #1e1e28; padding: 12px; border-radius: 8px; margin-bottom: 12px;";
+
+      let galleryHTML = '';
+      if (trip.photos && trip.photos.length > 0) {
+        galleryHTML = `<div class="photo-grid" style="display:flex; gap:4px; overflow-x:auto; margin:8px 0;">` + 
+          trip.photos.map(url => `<img src="${url}" style="width:60px; height:60px; object-fit:cover; border-radius:4px;" alt="Trip Photo" onerror="this.style.display='none'"/>`).join('') + 
+          `</div>`;
+      }
+
+      let placesHTML = trip.places.map((p, index) => `
+        <div class="place-item" style="display:flex; justify-content:space-between; margin-top:4px;">
+          <span>📍 ${p.name}</span>
+          <button style="width:auto; padding:2px 6px; font-size:0.7rem; background:#e74c3c; color:#fff; border:none; border-radius:3px;" onclick="deletePlaceFromTrip(${trip.id}, ${index})">✕</button>
+        </div>
+      `).join('');
+
+      card.innerHTML = `
+        <h4 style="margin:0 0 4px 0; color:#fff;">${trip.name}</h4>
+        <div style="font-size:0.8rem; color:#aaa; margin-bottom:4px;">🗓️ ${trip.dates || 'Dates not set'}</div>
+        <p style="font-size:0.85rem; margin:6px 0; color:#ccc;">${trip.notes || 'No trip notes added.'}</p>
+        
+        <strong style="font-size:0.8rem; color:#f1c40f;">Places (${trip.places.length}):</strong>
+        <div style="margin:4px 0;">${placesHTML || '<em style="font-size:0.8rem; color:#777;">No places added.</em>'}</div>
+
+        ${galleryHTML}
+
+        <button style="background:#e67e22; color:#fff; border:none; padding:4px 8px; border-radius:4px; margin-top:8px; cursor:pointer;" onclick="focusTripRoute(${trip.id})">🗺️ Route Line</button>
+        <button style="background:#27ae60; color:#fff; border:none; padding:4px 8px; border-radius:4px; margin-top:4px; cursor:pointer; width:100%;" onclick="addActivePlaceToTrip(${trip.id})">+ Add Active Pin to Trip</button>
+        
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <button style="background:#f39c12; color:#fff; border:none; padding:4px 8px; border-radius:4px; flex:1; cursor:pointer;" onclick="editTrip(${trip.id})">✏️ Edit</button>
+          <button style="background:#c0392b; color:#fff; border:none; padding:4px 8px; border-radius:4px; flex:1; cursor:pointer;" onclick="deleteTrip(${trip.id})">🗑️ Delete</button>
+        </div>
+      `;
+
+      container.appendChild(card);
+    });
+  }
+
+  function renderMapPins() {
+    clearActivePin();
+    savedPinsLayerGroup.clearLayers();
+
+    tripsData.forEach(trip => {
+      trip.places.forEach(place => {
+        L.marker(place.coords)
+          .bindPopup(`<b>${place.name}</b><br>Trip: <i>${trip.name}</i>`)
+          .addTo(savedPinsLayerGroup);
+      });
+    });
+  }
+
+  function focusTripRoute(tripId) {
+    const trip = tripsData.find(t => t.id === tripId);
+    if (!trip || trip.places.length === 0) {
+      alert("This trip has no mapped places yet!");
+      return;
+    }
+
+    if (activePolyline) {
+      map.removeLayer(activePolyline);
+    }
+
+    const routeCoords = trip.places.map(p => p.coords);
+
+    activePolyline = L.polyline(routeCoords, {
+      color: '#f39c12',
+      weight: 4,
+      dashArray: '8, 8'
+    }).addTo(map);
+
+    map.fitBounds(activePolyline.getBounds(), { padding: [50, 50] });
+  }
+
+  function clearActivePin() {
+    if (activeMarker) {
+      map.removeLayer(activeMarker);
+      activeMarker = null;
+    }
+    activeLocationData = null;
+    document.getElementById('activeLocationCard').style.display = 'none';
+  }
+
+  function resetForm() {
+    document.getElementById('editingTripId').value = '';
+    document.getElementById('tripName').value = '';
+    document.getElementById('tripDates').value = '';
+    document.getElementById('tripNotes').value = '';
+    document.getElementById('tripPhotos').value = '';
+    document.getElementById('saveTripBtn').innerText = "Save Trip";
+    document.getElementById('cancelEditBtn').style.display = "none";
+    clearActivePin();
+  }
+
+  // -------------------------------------------------------------
+  // FEATURE 5: GOOGLE DRIVE PERSISTENCE INTEGRATION
+  // -------------------------------------------------------------
+  function initGoogleDrive() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (response) => {
+        if (response.error) {
+          console.error("Auth error:", response);
+          return;
+        }
+        accessToken = response.access_token;
+        document.getElementById('auth-status').innerText = "Status: Connected 🟢";
+        document.getElementById('login-btn').style.display = "none";
+
+        // Load gapi client for Google Drive File Operations
+        gapi.load('client', async () => {
+          await gapi.client.init({});
+          gapi.client.setToken({ access_token: accessToken });
+          await syncDataFromDrive();
+        });
+      },
+    });
+  }
+
+  function handleAuthClick() {
+    if (!tokenClient) initGoogleDrive();
+    tokenClient.requestAccessToken({ prompt: 'select_account' });
+  }
+
+  async function getOrCreateDriveFile() {
+    try {
+      const res = await gapi.client.request({
+        path: 'https://www.googleapis.com/drive/v3/files',
+        params: {
+          q: `name='${FILE_NAME}' and 'appDataFolder' in parents and trashed=false`,
+          spaces: 'appDataFolder'
+        }
+      });
+
+      const files = res.result.files;
+      if (files && files.length > 0) {
+        driveFileId = files[0].id;
+        return driveFileId;
+      } else {
+        const createRes = await gapi.client.request({
+          path: 'https://www.googleapis.com/drive/v3/files',
+          method: 'POST',
+          body: {
+            name: FILE_NAME,
+            parents: ['appDataFolder'],
+            mimeType: 'application/json'
+          }
+        });
+        driveFileId = createRes.result.id;
+        return driveFileId;
+      }
+    } catch (err) {
+      console.error("Error finding or creating file:", err);
+    }
+  }
+
+  async function syncDataFromDrive() {
+    const fileId = await getOrCreateDriveFile();
+    if (!fileId) return;
+
+    try {
+      const res = await gapi.client.request({
+        path: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+      });
+      
+      const cloudTrips = res.result || [];
+      console.log("Downloaded trips from Google Drive:", cloudTrips);
+      
+      tripsData = cloudTrips; 
+      saveTripsToStorage(); // Sync local storage with Google Drive payload
+      renderTripsUI();
+      renderMapPins();
+    } catch (err) {
+      console.warn("File empty or corrupt, saving active state.");
+    }
+  }
+</script>
+</body>
+</html>
